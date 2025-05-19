@@ -1,5 +1,9 @@
-tensorflow=
-streamlit=
+tensorflow
+streamlit
 joblib
 pickle
 json
+os
+Optional
+Tokenizer
+pad_sequences
