@@ -1,9 +1,4 @@
-tensorflow
 streamlit
+tensorflow==2.13
 joblib
-pickle
-json
-os
-Optional
-Tokenizer
-pad_sequences
+pickle-mixin
