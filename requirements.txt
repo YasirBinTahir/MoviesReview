@@ -1,5 +1,6 @@
-﻿tensorflow
-streamlit
+tensorflow==2.15.0
+streamlit==1.31.1
 joblib
 pickle
 json
+numpy==1.20.3
