@@ -1,4 +1,4 @@
-pip install tensorflow==2.13
+
 import streamlit as st
 import tensorflow as tf
 from tensorflow.keras.preprocessing.text import Tokenizer
