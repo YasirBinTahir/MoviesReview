@@ -1,21 +1,17 @@
-
 import streamlit as st
 import tensorflow as tf
 from tensorflow.keras.preprocessing.text import Tokenizer
 from tensorflow.keras.preprocessing.sequence import pad_sequences
-import joblib
 import pickle
-import json
 import os
 from typing import Optional
 
 # ----------------------------
-# Configuration - Easy to edit
+# Configuration
 # ----------------------------
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-MODEL_CONFIG_PATH = os.path.join(BASE_DIR, "model_config.json")
-MODEL_WEIGHTS_PATH = os.path.join(BASE_DIR, "model_weights.joblib")
+MODEL_H5_PATH = os.path.join(BASE_DIR, "movie_review_sentiment_model.h5")
 TOKENIZER_PATH = os.path.join(BASE_DIR, "tokenizer.pickle")
 MAX_LEN = 200  # Must match training
 
@@ -33,18 +29,9 @@ def load_resources() -> tuple[Optional[tf.keras.Model], Optional[Tokenizer], int
         return None, None, None
 
     try:
-        with open(MODEL_CONFIG_PATH, "r") as f:
-            model_config = json.load(f)
-        model = tf.keras.models.model_from_json(json.dumps(model_config))
+        model = tf.keras.models.load_model(MODEL_H5_PATH)
     except Exception as e:
-        st.error(f"❌ Could not load model config: {e}")
-        return None, None, None
-
-    try:
-        model_weights = joblib.load(MODEL_WEIGHTS_PATH)
-        model.set_weights(model_weights)
-    except Exception as e:
-        st.error(f"❌ Could not load model weights: {e}")
+        st.error(f"❌ Could not load model: {e}")
         return None, None, None
 
     return model, tokenizer, MAX_LEN
@@ -73,7 +60,7 @@ def predict_sentiment(text: str, model: tf.keras.Model, tokenizer: Tokenizer, ma
 def main():
     st.set_page_config(page_title="Sentiment Analyzer", page_icon="🎬")
 
-    # 🎬 Add movie-themed background with dark overlay
+    # 🎬 Background styling
     st.markdown(
         """
         <style>
@@ -88,18 +75,15 @@ def main():
             color: white;
         }
 
-        /* Title and labels */
         h1, .stMarkdown, .stTextInput label, .stTextArea label {
             color: white !important;
         }
 
-        /* Text area background */
         textarea {
             background-color: rgba(255, 255, 255, 0.9) !important;
             color: black !important;
         }
 
-        /* Button styling */
         .stButton>button {
             background-color: #e50914;
             color: white;
@@ -112,7 +96,6 @@ def main():
         unsafe_allow_html=True
     )
 
-    # App title and instructions
     st.title("🎬 Movie Review Sentiment Analyzer")
     st.write("Type a movie review below and click **Analyze Sentiment** to see if it's positive or negative.")
 
@@ -121,15 +104,12 @@ def main():
     if model is None or tokenizer is None:
         st.stop()
 
-    # Input area
+    # Input and prediction
     user_input = st.text_area("✍️ Enter your movie review:", "The movie was absolutely fantastic!")
 
-    # Predict button
     if st.button("Analyze Sentiment"):
         sentiment = predict_sentiment(user_input, model, tokenizer, max_len)
         st.success(f"**Result:** {sentiment}")
 
-
 if __name__ == "__main__":
     main()
-
