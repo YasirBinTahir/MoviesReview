@@ -1,131 +1,99 @@
 import streamlit as st
 import tensorflow as tf
-import requests
-from tensorflow.keras.preprocessing.text import Tokenizer
+import joblib # Changed from pickle to joblib, or keep pickle if you prefer
 from tensorflow.keras.preprocessing.sequence import pad_sequences
-import pickle
-import os
-from typing import Optional
+import os # To check if files exist
 
-# ----------------------------
-# Configuration
-# ----------------------------
+# Inject CSS for background image and styled container
+st.markdown(
+    """
+    <style>
+    .stApp {
+        background-image: url("https://images.unsplash.com/photo-1507525428034-b723cf961d3e");
+        background-size: cover;
+        background-repeat: no-repeat;
+        background-position: center;
+    }
+    h1 {
+      color: #2E86C1 !important;
+    }
+    p {
+      color: green !important;
+    }
+    div[data-testid="stForm"] {
+        background-color: rgba(0, 0, 0, 0.7); /* Slightly transparent black */
+        padding: 2rem;
+        border-radius: 15px;
+        box-shadow: 0 0 10px rgba(0,0,0,0.2);
+    }
+    .form_submit_button {
+        color: white;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-MODEL_H5_PATH = os.path.join(BASE_DIR, "movie_review_sentiment_model.h5")
-TOKENIZER_PATH = os.path.join(BASE_DIR, "tokenizer.pickle")
-MAX_LEN = 200  # Must match training
+# Define paths for your model and tokenizer
+# These paths should match where you save them in your Colab training script
+MODEL_PATH = 'final_sentiment_model.keras' # Make sure this matches the saved file name
+TOKENIZER_PATH = 'tokenizer.pkl' # Make sure this matches the saved file name
 
-# ----------------------------
-# Load Resources (cached)
-# ----------------------------
-
-# Google Drive file ID (you extract it from the share link)
-FILE_ID = "YOUR_FILE_ID_HERE"  # ← Change this!
-MODEL_PATH = "movie_review_sentiment_model.h5"
-TOKENIZER_PATH = "tokenizer.pickle"
-MAX_LEN = 200
-
+# Load model and tokenizer
 @st.cache_resource
-def load_resources() -> tuple[Optional[tf.keras.Model], Optional[Tokenizer], int]:
+def load_sentiment_model():
+    if not os.path.exists(MODEL_PATH):
+        st.error(f"Model file not found at {MODEL_PATH}. Please ensure it's in the same directory as your Streamlit app.")
+        return None
     try:
-        with open(TOKENIZER_PATH, "rb") as handle:
-            tokenizer = pickle.load(handle)
+        # Load the model directly
+        model = tf.keras.models.load_model(MODEL_PATH)
+        return model
     except Exception as e:
-        st.error(f"❌ Could not load tokenizer: {e}")
-        return None, None, None
+        st.error(f"Error loading Keras model: {e}")
+        return None
 
+@st.cache_data
+def load_sentiment_tokenizer():
+    if not os.path.exists(TOKENIZER_PATH):
+        st.error(f"Tokenizer file not found at {TOKENIZER_PATH}. Please ensure it's in the same directory as your Streamlit app.")
+        return None
     try:
-        with open(MODEL_CONFIG_PATH, "r") as f:
-            model_config = json.load(f)
-        model = tf.keras.models.model_from_json(json.dumps(model_config))
+        with open(TOKENIZER_PATH, 'rb') as f:
+            return joblib.load(f) # Changed to joblib.load
     except Exception as e:
-        st.error(f"❌ Could not load model config: {e}")
-        return None, None, None
+        st.error(f"Error loading tokenizer: {e}")
+        return None
 
-    try:
-        model_weights = joblib.load(MODEL_WEIGHTS_PATH)
-        model.set_weights(model_weights)
-    except Exception as e:
-        st.error(f"❌ Could not load model weights: {e}")
-        return None, None, None
+model = load_sentiment_model()
+tokenizer = load_sentiment_tokenizer()
 
-    return model, tokenizer, MAX_LEN
+# Make sure MAX_LEN is consistent with training
+MAX_SEQUENCE_LENGTH = 100 # This must match MAX_LEN from your training script!
 
-# ----------------------------
-# Sentiment Prediction
-# ----------------------------
+# Begin form
+with st.form("sentiment_form"): # Renamed form ID for clarity
+    st.title("🎬 Movie Review Sentiment Analyzer") # Adjusted title
+    st.write("Enter a movie review to predict its sentiment (Positive or Negative).")
 
-def predict_sentiment(text: str, model: tf.keras.Model, tokenizer: Tokenizer, max_len: int) -> str:
-    if not model or not tokenizer:
-        return "Model or tokenizer not loaded."
+    review = st.text_area("Movie Review", height=100)
 
-    sequence = tokenizer.texts_to_sequences([text])
-    padded = pad_sequences(sequence, maxlen=max_len, padding='post', truncating='post')
+    # ✅ Submit button required for forms
+    submit = st.form_submit_button("Predict Sentiment")
 
-    try:
-        prediction = model.predict(padded)[0][0]
-        return "😊 Positive" if prediction >= 0.5 else "😞 Negative"
-    except Exception as e:
-        return f"Prediction error: {e}"
+    if submit:
+        if model is None or tokenizer is None:
+            st.error("Model or tokenizer could not be loaded. Please check logs.")
+        elif review:
+            # Preprocess the input review
+            sequence = tokenizer.texts_to_sequences([review])
+            padded = pad_sequences(sequence, maxlen=MAX_SEQUENCE_LENGTH, padding='post', truncating='post')
 
-# ----------------------------
-# Streamlit UI
-# ----------------------------
+            # Make prediction
+            prediction = model.predict(padded)[0][0]
+            sentiment = "Positive 😊" if prediction >= 0.5 else "Negative 😞"
 
-def main():
-    st.set_page_config(page_title="Sentiment Analyzer", page_icon="🎬")
-
-    # 🎬 Background styling
-    st.markdown(
-        """
-        <style>
-        .stApp {
-            background-image: linear-gradient(
-                rgba(0, 0, 0, 0.65),
-                rgba(0, 0, 0, 0.65)
-            ), url("https://images.unsplash.com/photo-1598899134739-24c46f58b8e0?auto=format&fit=crop&w=1470&q=80");
-            background-size: cover;
-            background-attachment: fixed;
-            background-position: center;
-            color: white;
-        }
-
-        h1, .stMarkdown, .stTextInput label, .stTextArea label {
-            color: white !important;
-        }
-
-        textarea {
-            background-color: rgba(255, 255, 255, 0.9) !important;
-            color: black !important;
-        }
-
-        .stButton>button {
-            background-color: #e50914;
-            color: white;
-            border-radius: 10px;
-            padding: 0.6em 1.2em;
-            font-weight: bold;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
-
-    st.title("🎬 Movie Review Sentiment Analyzer")
-    st.write("Type a movie review below and click **Analyze Sentiment** to see if it's positive or negative.")
-
-    # Load model and tokenizer
-    model, tokenizer, max_len = load_resources()
-    if model is None or tokenizer is None:
-        st.stop()
-
-    # Input and prediction
-    user_input = st.text_area("✍️ Enter your movie review:", "The movie was absolutely fantastic!")
-
-    if st.button("Analyze Sentiment"):
-        sentiment = predict_sentiment(user_input, model, tokenizer, max_len)
-        st.success(f"**Result:** {sentiment}")
-
-if __name__ == "__main__":
-    main()
+            st.markdown(f"**Predicted Sentiment:** {sentiment}")
+            st.markdown(f"*(Confidence: {prediction:.2f})*") # Show confidence for more insight
+        else:
+            st.warning("Please enter a movie review to analyze.")
