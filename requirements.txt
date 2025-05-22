@@ -1,4 +1,8 @@
 streamlit
 tensorflow
-requests
-joblib
+pandas
+numpy
+scikit-learn
+imbalanced-learn
+seaborn
+matplotlib
