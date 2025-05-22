@@ -1,6 +1,4 @@
-streamlit==1.33.0
-tensorflow==2.11.0
-scikit-learn
+streamlit
+tensorflow
+requests
 joblib
-pickle5
-
