@@ -1,5 +1,6 @@
 import streamlit as st
 import tensorflow as tf
+import requests
 from tensorflow.keras.preprocessing.text import Tokenizer
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 import pickle
@@ -19,20 +20,48 @@ MAX_LEN = 200  # Must match training
 # Load Resources (cached)
 # ----------------------------
 
-@st.cache_resource
-def load_resources() -> tuple[Optional[tf.keras.Model], Optional[Tokenizer], int]:
-    try:
-        with open(TOKENIZER_PATH, "rb") as handle:
-            tokenizer = pickle.load(handle)
-    except Exception as e:
-        st.error(f"❌ Could not load tokenizer: {e}")
-        return None, None, None
+# Google Drive file ID (you extract it from the share link)
+FILE_ID = "YOUR_FILE_ID_HERE"  # ← Change this!
+MODEL_PATH = "movie_review_sentiment_model.h5"
+TOKENIZER_PATH = "tokenizer.pickle"
+MAX_LEN = 200
 
-    try:
-        model = tf.keras.models.load_model(MODEL_H5_PATH)
-    except Exception as e:
-        st.error(f"❌ Could not load model: {e}")
-        return None, None, None
+# Direct download helper
+def download_from_gdrive(file_id, dest_path):
+    URL = "https://drive.google.com/file/d/1qYxA1WodMtuCTaf6ZVfznW78-G7h6efz/view?usp=sharing"
+
+    session = requests.Session()
+    response = session.get(URL, params={'id': file_id}, stream=True)
+    token = get_confirm_token(response)
+
+    if token:
+        response = session.get(URL, params={'id': file_id, 'confirm': token}, stream=True)
+
+    save_response_content(response, dest_path)
+
+def get_confirm_token(response):
+    for key, value in response.cookies.items():
+        if key.startswith('download_warning'):
+            return value
+    return None
+
+def save_response_content(response, destination):
+    with open(destination, 'wb') as f:
+        for chunk in response.iter_content(32768):
+            if chunk:
+                f.write(chunk)
+
+@st.cache_resource
+def load_model_and_tokenizer():
+    # Download model if not already present
+    if not os.path.exists(MODEL_PATH):
+        st.info("📥 Downloading model...")
+        download_from_gdrive(FILE_ID, MODEL_PATH)
+
+    model = tf.keras.models.load_model(MODEL_PATH)
+
+    with open(TOKENIZER_PATH, 'rb') as handle:
+        tokenizer = pickle.load(handle)
 
     return model, tokenizer, MAX_LEN
 
