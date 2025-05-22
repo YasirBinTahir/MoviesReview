@@ -26,42 +26,29 @@ MODEL_PATH = "movie_review_sentiment_model.h5"
 TOKENIZER_PATH = "tokenizer.pickle"
 MAX_LEN = 200
 
-# Direct download helper
-def download_from_gdrive(file_id, dest_path):
-    URL = "https://drive.google.com/file/d/1qYxA1WodMtuCTaf6ZVfznW78-G7h6efz/view?usp=sharing"
-
-    session = requests.Session()
-    response = session.get(URL, params={'id': file_id}, stream=True)
-    token = get_confirm_token(response)
-
-    if token:
-        response = session.get(URL, params={'id': file_id, 'confirm': token}, stream=True)
-
-    save_response_content(response, dest_path)
-
-def get_confirm_token(response):
-    for key, value in response.cookies.items():
-        if key.startswith('download_warning'):
-            return value
-    return None
-
-def save_response_content(response, destination):
-    with open(destination, 'wb') as f:
-        for chunk in response.iter_content(32768):
-            if chunk:
-                f.write(chunk)
-
 @st.cache_resource
-def load_model_and_tokenizer():
-    # Download model if not already present
-    if not os.path.exists(MODEL_PATH):
-        st.info("📥 Downloading model...")
-        download_from_gdrive(FILE_ID, MODEL_PATH)
+def load_resources() -> tuple[Optional[tf.keras.Model], Optional[Tokenizer], int]:
+    try:
+        with open(TOKENIZER_PATH, "rb") as handle:
+            tokenizer = pickle.load(handle)
+    except Exception as e:
+        st.error(f"❌ Could not load tokenizer: {e}")
+        return None, None, None
 
-    model = tf.keras.models.load_model(MODEL_PATH)
+    try:
+        with open(MODEL_CONFIG_PATH, "r") as f:
+            model_config = json.load(f)
+        model = tf.keras.models.model_from_json(json.dumps(model_config))
+    except Exception as e:
+        st.error(f"❌ Could not load model config: {e}")
+        return None, None, None
 
-    with open(TOKENIZER_PATH, 'rb') as handle:
-        tokenizer = pickle.load(handle)
+    try:
+        model_weights = joblib.load(MODEL_WEIGHTS_PATH)
+        model.set_weights(model_weights)
+    except Exception as e:
+        st.error(f"❌ Could not load model weights: {e}")
+        return None, None, None
 
     return model, tokenizer, MAX_LEN
 
